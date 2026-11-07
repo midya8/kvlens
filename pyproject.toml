@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kvlens"
+version = "0.1.0"
+description = "KV-cached incremental decoding from scratch, verified token-for-token against full recompute with measured FLOP savings"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[project.scripts]
+kvlens = "kvlens.cli:main"
