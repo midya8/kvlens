@@ -1,0 +1,19 @@
+{
+  "commit": "3a951146251ab028381173bb5a669ece0e6ca437",
+  "files": {
+    "pyproject.toml": "96270f4ad62897a78870f7b3eefb209c24c4b7871883c0986d562f9fa183c603",
+    ".gitignore": "538696558c15ee01cdad3021d5e2d846e6a515d00038ff5b9a8e02524f3e7745",
+    "LICENSE": "3fa74c2aedaa8c47c8f57973472e8ec9040bb2cc9f502ba6346b0b3b154671c0",
+    "README.md": "9f87ff2162518c297ccbcfaea18654c279618ac5813eaf8b7bb0e8817c0aac65",
+    "tests/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "tests/test_analysis.py": "2696b1c8ff753e22de74278720ec0be863477f66c1f75516215a3f55f8b31ef8",
+    "tests/test_model.py": "1ccb00d3559a1221ee6d0f4adb9dcafedfd1fe612125ab621d92bff729cc8e2e",
+    "tests/test_cli.py": "0aa4583bf8db7774b8e02dcd03922aa8e94839a0e69cd24725c9d69b525a11f5",
+    "kvlens/analysis.py": "97757cde8fae84a265d59d52d336038e4c91d8cc907a36e1712fa44dcf210f7e",
+    "kvlens/model.py": "3bc6ca31f4f8b06220644975c81c511d8f8a713832b67c53352353cca85675e7",
+    "kvlens/__init__.py": "19571c09b5398dc269255d2cdcc7dc80ea0516f23f81234a4d84fa374d8fe968",
+    "kvlens/cli.py": "3a475ae9be31030fc4475e0102153fa2e6e4f238825ee5f634572aee12e999e2",
+    ".github/workflows/ci.yml": "d1ee831047f92d0faf2a174f90ffa65a402f018f38754cde6a2a972e8848788d",
+    "examples/demo.sh": "2c1c9e7307187af4d407d78f485d12f4dfd8a6658100ac6c816b90d64a601d79"
+  }
+}
