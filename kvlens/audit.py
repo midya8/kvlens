@@ -52,7 +52,6 @@ def attention(model,tokens):
         v=[_project_row(model,row,model.wv[h]) for row in x]
         score_terms=[[q[c]*row[c]/math.sqrt(model.head_dim) for c in range(model.head_dim)] for row in k]
         # Match original: sum products, then scale. Term sums may round differently.
-        scores=[sum(q[c]*row[c] for c in range(model.head_dim))/math.sqrt(model.head_dim) for row in k]
         # Original uses multiplication by reciprocal, preserve that order exactly.
         scores=[sum(q[c]*row[c] for c in range(model.head_dim))*(1/math.sqrt(model.head_dim)) for row in k]
         probs=softmax(scores)
