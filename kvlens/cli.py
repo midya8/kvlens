@@ -19,7 +19,7 @@ def _add_eval_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--steps", type=int, default=32)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="kvlens", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     _add_eval_args(p_json)
 
     args = parser.parse_args(argv)
+
+    if hasattr(args, "steps") and args.steps < 1:
+        raise ValueError("original CLI requires steps >= 1; kvlens.audit supports a zero-work budget")
 
     if args.cmd == "generate":
         model = Model(vocab=args.vocab, dim=args.dim, heads=args.heads, seed=args.seed)
@@ -103,6 +106,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     return 2
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except (ValueError, OverflowError) as exc:
+        print(f"kvlens: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
