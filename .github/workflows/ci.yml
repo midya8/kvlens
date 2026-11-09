@@ -12,6 +12,26 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -s tests -v
+      - run: python scripts/verify_regeneration.py
       - run: python -m kvlens.cli generate --steps 32 --require-identical --min-savings 0.85
       - run: python -m kvlens.cli equivalence
       - run: bash examples/demo.sh
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test tests/*.cjs
+  installed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: bash examples/verify_wheel.sh
