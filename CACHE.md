@@ -1,4 +1,4 @@
-# Cache state, baseline strength and the bill
+# KVLens attention and cache method
 
 KVLens is a single untrained causal attention block. It is an implementation of
 standard attention and KV reuse, not a new inference algorithm or useful language
