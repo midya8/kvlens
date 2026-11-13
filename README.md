@@ -1,18 +1,18 @@
 # KVLens
 
-KV-cached incremental decoding from scratch, with a complete offline attention
-inspector and a stronger final-query-only baseline. Same logits on checked
-inputs; explicit counted operations, not a latency benchmark.
+KVLens compares cached and uncached decoding in one small causal attention block. Seeded weights are fixed inputs, not a trained language model. The offline inspector shows every attention tensor and cache change, with operation counts rather than latency measurements.
+
+Two comparisons stay separate: the original full-recompute/cache pair, and an optimized cache against a stronger final-query-only uncached path. [CACHE.md](CACHE.md) defines their state rules, equations and counted work.
 
 [Live attention and cache inspector](https://midya8.github.io/kvlens/) ·
 [State contract, equations and attribution](CACHE.md)
 
-## A stronger comparison, every tensor
+## Final-query comparison and attention inspector
 
 The historical baseline computes every past query's attention even though this
 single block only uses the final row. The new no-cache path computes only that
 query. An optimized prefill uses the same shortcut; the old pair stays intact.
-For seed 1, prompt[0,1,2,3] and 8 predictions, old-full/final-query/historical-cache/
+For seed 1, prompt [0,1,2,3] and 8 predictions, old-full/final-query/historical-cache/
 optimized-cache totals are 34,944/21,376/9,408/8,832 counted operations. The old pair
 saves 73.08%; optimized cache versus the stronger no-cache path saves 58.68%.
 These are named comparisons, not an isolated causal effect or measured speedup.
@@ -30,7 +30,7 @@ must stay fixed; same-object weight mutation is not fingerprint-detected and
 these guards are not a security boundary. Zero-token generation does no work.
 
 55 Python tests retain all 28 originals; three Node/actual-Chrome tests compare 32
-complete reports,97 predictions and 66,940 numeric entries. Chrome traverses 227
+complete reports, 97 predictions and 66,940 numeric entries. Chrome traverses 227
 head-step views/1,279 attention-position rows, all model-weight tables, two JSON
 exports, keyboard and 320/390/1280 layouts. An isolated installed wheel verifies
 five module origins, all reports, original curve/equivalence, lifecycle checks,
@@ -56,7 +56,7 @@ KVLens implements a tiny causal multi-head attention block (seeded weights - the
 
 The two paths share the same operations in the same order, so their logits are **bitwise identical** - the equivalence sweep reports a max absolute logit difference of exactly 0.0 across model configurations and prefix lengths. Greedy generations match token for token. A matmul FLOP counter in both paths measures the savings directly.
 
-## Measured results
+## Original counted-operation results
 
 Default fixture (vocab 16, dim 8, 2 heads, prompt 4, seeded weights), from `kvlens curve`:
 
@@ -73,7 +73,7 @@ Savings grow with generation length and shrink with a longer prompt, exactly as 
 ## What is verified
 
 - **Bitwise logit equivalence** between the paths across two model configurations and five prefix lengths (`kvlens equivalence`); greedy generations identical across further configurations in the test suite.
-- **Measured savings**: CI gates require at least 85% FLOP savings at 32 generated tokens on the default fixture and a monotonically increasing savings curve.
+- **Counted savings**: CI gates require at least 85% FLOP savings at 32 generated tokens on the default fixture and a monotonically increasing savings curve.
 - The counter counts matmul FLOPs only (Q/K/V projections, attention scores/weighted sums, output projections); it excludes embeddings, softmax and non-matmul adds (dot-product accumulation is counted). The saved fraction is stated for that counted cost, not for wall-clock time - pure-Python inner loops are dominated by interpreter overhead, and this project makes no latency claim.
 
 ## Usage
@@ -92,7 +92,7 @@ python -m kvlens.cli json                   # full machine-readable report
 - `kvlens/model.py` - seeded causal attention model, `Cache`, batched `prefill`, incremental `cache_token`, and both generation paths with FLOP counters.
 - `kvlens/analysis.py` - logit-equivalence checks, the configuration/length sweep, and the savings curve.
 - `kvlens/cli.py` - commands above.
-- `tests/` - 28 unit tests covering shapes, seeded determinism, bitwise and greedy equivalence across configs, cost ordering, and every CLI gate.
+- `tests/` - the 28 original unit tests, retained in the current suite of 55, cover shapes, seeded determinism, bitwise and greedy equivalence across configs, cost ordering, and every CLI gate.
 
 ## Limits
 
