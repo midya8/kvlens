@@ -29,11 +29,11 @@ shape/token guards and deep independent forks cover lifecycle mistakes. Weights
 must stay fixed; same-object weight mutation is not fingerprint-detected and
 these guards are not a security boundary. Zero-token generation does no work.
 
-55 Python tests retain all 28 originals; three Node/actual-Chrome tests compare 32
+59 Python tests retain all 28 originals and all 55 earlier tests; three Node/actual-Chrome tests compare 32
 complete reports, 97 predictions and 66,940 numeric entries. Chrome traverses 227
 head-step views/1,279 attention-position rows, all model-weight tables, two JSON
 exports, keyboard and 320/390/1280 layouts. An isolated installed wheel verifies
-five module origins, all reports, original curve/equivalence, lifecycle checks,
+six module origins, all reports, original curve/equivalence, lifecycle checks,
 the audit CLI and every original CLI mode. Finite tests are not a universal proof.
 
 ```bash
@@ -46,6 +46,39 @@ bash examples/verify_wheel.sh
 Audit input is bounded, strict JSON; errors exit 2 without partial output. All
 original positive-budget results below remain unchanged. Ideal K/V binary 64
 payload counts are not actual Python/browser memory or measured bandwidth.
+
+## Branch from a processed cache prefix
+
+```python
+from kvlens.model import Model, Cache, prefill, cache_token
+from kvlens.prefix import prefix_cache
+
+model = Model(vocab=8, dim=8, heads=2, seed=1)
+root = Cache(model)
+prefill(model, root, [1, 2, 3, 4])
+branch = prefix_cache(model, root, 2)
+logits = cache_token(model, branch, 7)  # context [1, 2, 7], position 2
+```
+
+`prefix_cache` copies the first `length` processed positions into an independent
+cache, including the empty prefix. It does not change the root, run projections
+or return logits for the copied endpoint. Appending resumes at the copied
+length, not the root's old position. Full-length copying matches the existing
+`fork_cache`; sibling and nested branches share no mutable K/V rows.
+
+Length counts **processed** tokens. In generation, the final emitted prediction
+may not have been processed into the cache. The cache does not store token
+identities or model fingerprints: callers must keep their token history and
+weights consistent, just as for the original API. This is copying stored state,
+not paged memory, an in-place rollback, speculative decoding, or a latency claim.
+
+Four tests check 504 prefix branches across seven seeds, four head/dimension
+settings, every cut in eight-token histories and both prefill paths. Three
+appends per branch match freshly rebuilt caches and full recomputation bit for
+bit, including append-operation counts. Other controls check empty re-prefill,
+stale-position failure, row independence in both directions and atomic invalid
+requests. The full installed-wheel check runs all four tests outside checkout.
+All earlier model, browser, report and fixture bytes remain unchanged.
 
 ## Original two-path fixture
 
@@ -92,7 +125,7 @@ python -m kvlens.cli json                   # full machine-readable report
 - `kvlens/model.py` - seeded causal attention model, `Cache`, batched `prefill`, incremental `cache_token`, and both generation paths with FLOP counters.
 - `kvlens/analysis.py` - logit-equivalence checks, the configuration/length sweep, and the savings curve.
 - `kvlens/cli.py` - commands above.
-- `tests/` - the 28 original unit tests, retained in the current suite of 55, cover shapes, seeded determinism, bitwise and greedy equivalence across configs, cost ordering, and every CLI gate.
+- `tests/` - the 28 original unit tests, retained in the current suite of 59, cover shapes, seeded determinism, bitwise and greedy equivalence across configs, cost ordering, and every CLI gate.
 
 ## Limits
 
