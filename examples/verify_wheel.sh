@@ -14,7 +14,7 @@ cd "$TMP"
 PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" - <<'PY'
 import importlib,json,pathlib
 from importlib import resources
-for name in ['kvlens','kvlens.model','kvlens.analysis','kvlens.cli','kvlens.audit']:
+for name in ['kvlens','kvlens.model','kvlens.analysis','kvlens.cli','kvlens.audit','kvlens.prefix']:
  m=importlib.import_module(name);assert '/site/' in m.__file__,m.__file__
 from kvlens.audit import audit
 from kvlens.analysis import equivalence_sweep,savings_curve
@@ -29,7 +29,7 @@ try:prefill(m,c,[3])
 except ValueError:pass
 else:raise AssertionError('occupied prefill accepted')
 pathlib.Path('audit.json').write_text(json.dumps(D['cases'][0]['report']['spec']))
-print('Installed: five module origins, all32 complete audits/97predictions, original full curve/equivalence and lifecycle/fork checks.')
+print('Installed: six module origins, all32 complete audits/97predictions, original full curve/equivalence and lifecycle/fork checks.')
 PY
 PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" -m kvlens.audit --input audit.json > audit-report.json
 PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" -m kvlens.cli generate --steps 32 --require-identical --min-savings 0.85 > generation.log
@@ -37,3 +37,6 @@ PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" -m kvlens.cli equivalence > equiva
 PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" -m kvlens.cli curve > curve.log
 PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" -m kvlens.cli json > original-report.json
 printf '%s\n' 'Audit and all four original CLI modes passed outside checkout.'
+
+# Run full independent rebuild, continuation and aliasing checks outside checkout.
+PYTHONPATH="$TMP/site" "$TMP/venv/bin/python" "$ROOT/tests/test_prefix.py" -v
