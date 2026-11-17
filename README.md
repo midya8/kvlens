@@ -1,53 +1,30 @@
-# KVLens
+# kvlens
 
-KVLens compares cached and uncached decoding in one small causal attention block. Seeded weights are fixed inputs, not a trained language model. The offline inspector shows every attention tensor and cache change, with operation counts rather than latency measurements.
+A KV cache for a single attention block, written out in plain Python so you can count what it saves. The weights are random (seeded), since the point is the decoding mechanics, not the text it produces.
 
-Two comparisons stay separate: the original full-recompute/cache pair, and an optimized cache against a stronger final-query-only uncached path. [CACHE.md](CACHE.md) defines their state rules, equations and counted work.
-
-[Live attention and cache inspector](https://midya8.github.io/kvlens/) ·
-[State contract, equations and attribution](CACHE.md)
-
-## Final-query comparison and attention inspector
-
-The historical baseline computes every past query's attention even though this
-single block only uses the final row. The new no-cache path computes only that
-query. An optimized prefill uses the same shortcut; the old pair stays intact.
-For seed 1, prompt [0,1,2,3] and 8 predictions, old-full/final-query/historical-cache/
-optimized-cache totals are 34,944/21,376/9,408/8,832 counted operations. The old pair
-saves 73.08%; optimized cache versus the stronger no-cache path saves 58.68%.
-These are named comparisons, not an isolated causal effect or measured speedup.
-
-The independent browser computes all seven seeded model weight sets, every
-prediction, head, key/value row, score, softmax weight, value contribution,
-output/logit term and before/after cache. Full JSON and model exports, editable
-prompts/budgets, per-step operation ledgers and retained-state counts make the
-whole path inspectable. Weight arrays are inputs, not saved inference results.
-
-Fixed a real state bug: prefill on an occupied cache used to append tokens at
-restarted positions. It now rejects before changing state. Cache ownership,
-shape/token guards and deep independent forks cover lifecycle mistakes. Weights
-must stay fixed; same-object weight mutation is not fingerprint-detected and
-these guards are not a security boundary. Zero-token generation does no work.
-
-59 Python tests retain all 28 originals and all 55 earlier tests; three Node/actual-Chrome tests compare 32
-complete reports, 97 predictions and 66,940 numeric entries. Chrome traverses 227
-head-step views/1,279 attention-position rows, all model-weight tables, two JSON
-exports, keyboard and 320/390/1280 layouts. An isolated installed wheel verifies
-six module origins, all reports, original curve/equivalence, lifecycle checks,
-the audit CLI and every original CLI mode. Finite tests are not a universal proof.
+Generation runs two ways: the naive one that recomputes attention over the whole prefix for every new token, and the cached one that keeps each position's keys and values around and only computes the new token's. Both do the same operations in the same order, so the logits match bit for bit, and a counter tallies matmul FLOPs for each.
 
 ```bash
-python -m kvlens.audit --input examples/audit.json
-python scripts/verify_regeneration.py
-node --test tests/*.cjs
-bash examples/verify_wheel.sh
+python -m kvlens.cli generate --steps 32 --require-identical --min-savings 0.85
+python -m kvlens.cli curve
+python -m kvlens.cli equivalence
 ```
 
-Audit input is bounded, strict JSON; errors exit 2 without partial output. All
-original positive-budget results below remain unchanged. Ideal K/V binary 64
-payload counts are not actual Python/browser memory or measured bandwidth.
+With a 4-token prompt (vocab 16, dim 8, 2 heads):
 
-## Branch from a processed cache prefix
+| new tokens | full FLOPs | cached FLOPs | saved |
+|---|---|---|---|
+| 2 | 5,024 | 3,168 | 36.9% |
+| 8 | 34,944 | 9,408 | 73.1% |
+| 32 | 500,224 | 45,888 | 90.8% |
+
+Savings grow the longer you generate. At one new token there's no difference, because the prefill is already a full forward pass. These are counted FLOPs, not wall-clock time; in pure Python the interpreter overhead swamps everything, and the real-world win from caching is mostly memory bandwidth, which this doesn't model.
+
+A fairer comparison came later: the naive path computes attention for every past query, but only the last row matters. Making the uncached path compute just that last query brings the cache's saving at 8 tokens down from 73% to about 59%. CACHE.md goes through both.
+
+## Branching a cache
+
+You can copy the first n positions of a cache and continue from there, like rewinding to a shared prefix:
 
 ```python
 from kvlens.model import Model, Cache, prefill, cache_token
@@ -57,78 +34,11 @@ model = Model(vocab=8, dim=8, heads=2, seed=1)
 root = Cache(model)
 prefill(model, root, [1, 2, 3, 4])
 branch = prefix_cache(model, root, 2)
-logits = cache_token(model, branch, 7)  # context [1, 2, 7], position 2
+logits = cache_token(model, branch, 7)   # context is now [1, 2, 7]
 ```
 
-`prefix_cache` copies the first `length` processed positions into an independent
-cache, including the empty prefix. It does not change the root, run projections
-or return logits for the copied endpoint. Appending resumes at the copied
-length, not the root's old position. Full-length copying matches the existing
-`fork_cache`; sibling and nested branches share no mutable K/V rows.
+Writing this turned up a real bug: calling prefill on a cache that already had tokens used to append them at the wrong positions. It now refuses.
 
-Length counts **processed** tokens. In generation, the final emitted prediction
-may not have been processed into the cache. The cache does not store token
-identities or model fingerprints: callers must keep their token history and
-weights consistent, just as for the original API. This is copying stored state,
-not paged memory, an in-place rollback, speculative decoding, or a latency claim.
+There's a browser page that shows every attention score and cache row step by step: https://midya8.github.io/kvlens/
 
-Four tests check 504 prefix branches across seven seeds, four head/dimension
-settings, every cut in eight-token histories and both prefill paths. Three
-appends per branch match freshly rebuilt caches and full recomputation bit for
-bit, including append-operation counts. Other controls check empty re-prefill,
-stale-position failure, row independence in both directions and atomic invalid
-requests. The full installed-wheel check runs all four tests outside checkout.
-All earlier model, browser, report and fixture bytes remain unchanged.
-
-## Original two-path fixture
-
-KVLens implements a tiny causal multi-head attention block (seeded weights - the point is the decoding machinery, not training) and runs generation down two paths:
-
-- **Full recompute** - the naive path: for every new token, recompute Q/K/V and attention over the entire prefix.
-- **KV cache** - the original cached path: a batched prefill computes each prompt position's K and V once; every decode step computes K/V for the new token only and attends over the cache.
-
-The two paths share the same operations in the same order, so their logits are **bitwise identical** - the equivalence sweep reports a max absolute logit difference of exactly 0.0 across model configurations and prefix lengths. Greedy generations match token for token. A matmul FLOP counter in both paths measures the savings directly.
-
-## Original counted-operation results
-
-Default fixture (vocab 16, dim 8, 2 heads, prompt 4, seeded weights), from `kvlens curve`:
-
-| new tokens | full FLOPs | cached FLOPs | saved |
-|---|---|---|---|
-| 2 | 5,024 | 3,168 | 36.9% |
-| 4 | 12,352 | 5,120 | 58.6% |
-| 8 | 34,944 | 9,408 | 73.1% |
-| 16 | 119,040 | 19,520 | 83.6% |
-| 32 | 500,224 | 45,888 | 90.8% |
-
-Savings grow with generation length and shrink with a longer prompt, exactly as the attention cost model predicts. At 1 generated token the paths cost the same: prefill is the full forward, and caching only pays off once decoding continues.
-
-## What is verified
-
-- **Bitwise logit equivalence** between the paths across two model configurations and five prefix lengths (`kvlens equivalence`); greedy generations identical across further configurations in the test suite.
-- **Counted savings**: CI gates require at least 85% FLOP savings at 32 generated tokens on the default fixture and a monotonically increasing savings curve.
-- The counter counts matmul FLOPs only (Q/K/V projections, attention scores/weighted sums, output projections); it excludes embeddings, softmax and non-matmul adds (dot-product accumulation is counted). The saved fraction is stated for that counted cost, not for wall-clock time - pure-Python inner loops are dominated by interpreter overhead, and this project makes no latency claim.
-
-## Usage
-
-```bash
-python -m kvlens.cli generate --steps 32 --require-identical --min-savings 0.85
-python -m kvlens.cli equivalence            # bitwise logit-equivalence sweep
-python -m kvlens.cli curve                  # FLOP savings over generation length
-python -m kvlens.cli json                   # full machine-readable report
-```
-
-`generate --require-identical` exits non-zero if the paths diverge; `--min-savings` gates the measured savings. Both run on every CI push.
-
-## Layout
-
-- `kvlens/model.py` - seeded causal attention model, `Cache`, batched `prefill`, incremental `cache_token`, and both generation paths with FLOP counters.
-- `kvlens/analysis.py` - logit-equivalence checks, the configuration/length sweep, and the savings curve.
-- `kvlens/cli.py` - commands above.
-- `tests/` - the 28 original unit tests, retained in the current suite of 59, cover shapes, seeded determinism, bitwise and greedy equivalence across configs, cost ordering, and every CLI gate.
-
-## Limits
-
-- One attention block, no training: weights are seeded RNG draws, so generated token sequences are not meaningful language - the project verifies decoding machinery, not model quality.
-- Greedy decoding only; no batching across sequences, no paged/evicted caches.
-- FLOP counts cover matmuls as described above; memory-bandwidth effects (the real reason KV caching is fast) are discussed, not measured.
+Tests: `python -m unittest discover -s tests` (59 tests). Greedy decoding only, one block, no batching.
